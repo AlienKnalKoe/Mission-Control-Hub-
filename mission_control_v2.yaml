@@ -1,0 +1,299 @@
+##############################################################
+# ENERGY MISSION CONTROL V2 — Graphical Edition
+# ESP32-4848S040 (Guition) | LVGL Gauges & Arcs
+##############################################################
+
+substitutions:
+  device_name: energy-mission-control
+  friendly_name: Energy Mission Control
+  timezone: "Europe/Amsterdam"
+  # Adjust these based on your typical max values
+  max_power_usage: "5000" 
+  max_solar_production: "4000"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: screen_cycle_timer
+
+packages:
+  hardware_core: !include packages/hardware_core.yaml
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "${device_name} Fallback"
+    password: "energyhub123"
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+logger:
+  level: INFO
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: "${timezone}"
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 18
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 28
+  - file: "gfonts://Roboto"
+    id: font_large
+    size: 48
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: font_icons
+    size: 32
+    glyphs:
+      - "\U000F059D" # sunny
+      - "\U000F0019" # flash
+      - "\U000F0190" # currency-eur
+      - "\U000F050F" # thermometer
+      - "\U000F02D7" # home-lightning-bolt
+
+globals:
+  - id: current_screen
+    type: int
+    initial_value: '0'
+  - id: touch_active
+    type: bool
+    initial_value: 'false'
+
+sensor:
+  # Energy Usage
+  - platform: homeassistant
+    id: energy_usage
+    entity_id: sensor.electricity_meter_energieverbruik
+    on_value:
+      then:
+        - lvgl.arc.set_value:
+            id: usage_arc
+            value: !lambda "return (int)x;"
+        - lvgl.label.update:
+            id: usage_val_label
+            text: !lambda 'return str_sprintf("%.0f W", x);'
+
+  # Solar Production
+  - platform: homeassistant
+    id: energy_production
+    entity_id: sensor.electricity_meter_energieproductie
+    on_value:
+      then:
+        - lvgl.arc.set_value:
+            id: solar_arc
+            value: !lambda "return (int)x;"
+        - lvgl.label.update:
+            id: solar_val_label
+            text: !lambda 'return str_sprintf("%.0f W", x);'
+
+  # Current Price
+  - platform: homeassistant
+    id: energy_price
+    entity_id: sensor.current_electricity_price_all_in
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: price_val_label
+            text: !lambda 'return str_sprintf("%.3f €", x);'
+
+  # Temperatures
+  - platform: homeassistant
+    id: temp_outdoor
+    entity_id: weather.forecast_thuis
+    attribute: temperature
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: temp_val_label
+            text: !lambda 'return str_sprintf("%.1f°C", x);'
+
+text_sensor:
+  - platform: homeassistant
+    id: weather_condition
+    entity_id: weather.forecast_thuis
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: weather_val_label
+            text: !lambda 'return x.c_str();'
+
+script:
+  - id: screen_cycle_timer
+    mode: restart
+    then:
+      - loop:
+          while: "true"
+          then:
+            - delay: 5s
+            - if:
+                condition:
+                  lambda: 'return !id(touch_active);'
+                then:
+                  - script.execute: next_screen
+
+  - id: next_screen
+    then:
+      - lambda: |-
+          id(current_screen) = (id(current_screen) + 1) % 2;
+          if (id(current_screen) == 0) {
+            id(main_nav).get_view().set_active_obj(id(screen_energy), LV_ANIM_ON);
+          } else {
+            id(main_nav).get_view().set_active_obj(id(screen_weather), LV_ANIM_ON);
+          }
+
+lvgl:
+  touchscreen: touch
+  on_touch:
+    then:
+      - lambda: 'id(touch_active) = true;'
+      - script.execute: screen_cycle_timer
+      - delay: 10s
+      - lambda: 'id(touch_active) = false;'
+
+  disp_bg_color: 0x000000
+
+  pages:
+    - id: page_main
+      widgets:
+        - tileview:
+            id: main_nav
+            tiles:
+              # SCREEN 1: ENERGY ARCS
+              - id: screen_energy
+                widgets:
+                  - label:
+                      text: "HOUSE POWER"
+                      align: TOP_MID
+                      y: 20
+                      text_font: font_medium
+                  
+                  # Usage Arc (Left/Top)
+                  - arc:
+                      id: usage_arc
+                      range_min: 0
+                      range_max: ${max_power_usage}
+                      width: 180
+                      height: 180
+                      align: CENTER
+                      x: -100
+                      y: -20
+                      rotation: 135
+                      type: normal
+                      arc_bg_end_angle: 270
+                      arc_color: 0xFF0000 # Red for consumption
+                      widgets:
+                        - label:
+                            id: usage_val_label
+                            text: "--- W"
+                            align: CENTER
+                            text_font: font_small
+
+                  # Solar Arc (Right/Bottom)
+                  - arc:
+                      id: solar_arc
+                      range_min: 0
+                      range_max: ${max_solar_production}
+                      width: 180
+                      height: 180
+                      align: CENTER
+                      x: 100
+                      y: 60
+                      rotation: 135
+                      type: normal
+                      arc_bg_end_angle: 270
+                      arc_color: 0x00FF00 # Green for solar
+                      widgets:
+                        - label:
+                            id: solar_val_label
+                            text: "--- W"
+                            align: CENTER
+                            text_font: font_small
+
+                  - label:
+                      text: "\U000F02D7" # home-lightning-bolt
+                      align: CENTER
+                      x: -100
+                      y: -80
+                      text_font: font_icons
+                      text_color: 0xFF0000
+
+                  - label:
+                      text: "\U000F059D" # sunny
+                      align: CENTER
+                      x: 100
+                      y: 0
+                      text_font: font_icons
+                      text_color: 0x00FF00
+
+              # SCREEN 2: WEATHER & PRICE GAUGES
+              - id: screen_weather
+                widgets:
+                  - label:
+                      text: "ENVIRONMENT"
+                      align: TOP_MID
+                      y: 20
+                      text_font: font_medium
+
+                  # Temperature Gauge (Visualized as an Arc)
+                  - arc:
+                      id: temp_arc
+                      range_min: -10
+                      range_max: 40
+                      width: 220
+                      height: 220
+                      align: CENTER
+                      y: -30
+                      rotation: 135
+                      arc_bg_end_angle: 270
+                      arc_color: 0x00AAFF
+                      widgets:
+                        - label:
+                            id: temp_val_label
+                            text: "--°C"
+                            align: CENTER
+                            text_font: font_large
+                        - label:
+                            id: weather_val_label
+                            text: "Loading..."
+                            align: CENTER
+                            y: 40
+                            text_font: font_small
+
+                  # Price Section
+                  - obj:
+                      width: 300
+                      height: 80
+                      align: BOTTOM_MID
+                      y: -40
+                      bg_color: 0x1A1A1A
+                      border_width: 2
+                      border_color: 0x333333
+                      radius: 10
+                      widgets:
+                        - label:
+                            text: "\U000F0190" # Euro icon
+                            align: LEFT_MID
+                            x: 20
+                            text_font: font_icons
+                            text_color: 0xFFFF00
+                        - label:
+                            id: price_val_label
+                            text: "--- €"
+                            align: RIGHT_MID
+                            x: -20
+                            text_font: font_medium
+                            text_color: 0xFFFFFF
