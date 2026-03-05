@@ -14,6 +14,9 @@ substitutions:
   max_cpu_temp: "80"       # °C — ESP32 throttles above ~80°C
   max_wifi_rssi: "100"     # Used for 0-100% mapping of WiFi signal
   max_uptime_hours: "168"  # 1 week = 100% on uptime arc
+  # Energy history chart
+  chart_hours: "12"        # Number of hourly bars shown on screen 4
+  chart_max_wh: "5000"     # Y-axis ceiling in Wh for the bar chart
 
 esphome:
   name: ${device_name}
@@ -80,6 +83,19 @@ globals:
   - id: uptime_hours
     type: float
     initial_value: '0.0'
+  # Energy history — circular buffer (12 hourly slots, kWh × 10 as int)
+  - id: usage_history
+    type: std::vector<int>
+    initial_value: '{0,0,0,0,0,0,0,0,0,0,0,0}'
+  - id: solar_history
+    type: std::vector<int>
+    initial_value: '{0,0,0,0,0,0,0,0,0,0,0,0}'
+  - id: history_slot
+    type: int
+    initial_value: '0'
+  - id: last_history_hour
+    type: int
+    initial_value: '-1'
 
 sensor:
   # Energy Usage
@@ -180,6 +196,27 @@ sensor:
                 return str_sprintf("%.0fm", x / 60.0f);
               return str_sprintf("%.1fh", h);
 
+  # ── Energy History Sensors (hourly kWh from HA statistics) ──────────
+  # Requires HA to expose these statistics sensors (auto-created if you have
+  # long-term statistics enabled for your electricity meter entities).
+  - platform: homeassistant
+    id: usage_kwh_hourly
+    entity_id: sensor.electricity_meter_energieverbruik
+    attribute: last_period   # provided by HA energy statistics helper
+    unit_of_measurement: kWh
+    on_value:
+      then:
+        - script.execute: push_energy_history
+
+  - platform: homeassistant
+    id: solar_kwh_hourly
+    entity_id: sensor.electricity_meter_energieproductie
+    attribute: last_period
+    unit_of_measurement: kWh
+    on_value:
+      then:
+        - script.execute: push_energy_history
+
 text_sensor:
   - platform: homeassistant
     id: weather_condition
@@ -207,14 +244,47 @@ script:
   - id: next_screen
     then:
       - lambda: |-
-          id(current_screen) = (id(current_screen) + 1) % 3;
+          id(current_screen) = (id(current_screen) + 1) % 4;
           if (id(current_screen) == 0) {
             id(main_nav).get_view().set_active_obj(id(screen_energy), LV_ANIM_ON);
           } else if (id(current_screen) == 1) {
             id(main_nav).get_view().set_active_obj(id(screen_weather), LV_ANIM_ON);
-          } else {
+          } else if (id(current_screen) == 2) {
             id(main_nav).get_view().set_active_obj(id(screen_status), LV_ANIM_ON);
+          } else {
+            id(main_nav).get_view().set_active_obj(id(screen_history), LV_ANIM_ON);
           }
+
+  # Pushes the latest hourly kWh values into the circular buffer and
+  # redraws the bar chart. Fires at most once per hour (guards against
+  # duplicate HA pushes mid-hour).
+  - id: push_energy_history
+    mode: single
+    then:
+      - lambda: |-
+          auto* t = id(sntp_time).now();
+          if (!t.is_valid()) return;
+          int cur_hour = t.hour;
+          if (cur_hour == id(last_history_hour)) return;   // already logged this hour
+          id(last_history_hour) = cur_hour;
+
+          int slot = id(history_slot) % 12;
+          // Store as Wh (multiply kWh × 1000, cap at chart max)
+          int u = (int)(id(usage_kwh_hourly).state * 1000.0f);
+          int s = (int)(id(solar_kwh_hourly).state * 1000.0f);
+          id(usage_history)[slot] = min(u, ${chart_max_wh});
+          id(solar_history)[slot] = min(s, ${chart_max_wh});
+          id(history_slot) = slot + 1;
+
+          // Redraw chart — fill series in chronological order from oldest slot
+          lv_chart_set_all_value(id(energy_usage_series), LV_CHART_POINT_NONE);
+          lv_chart_set_all_value(id(energy_solar_series), LV_CHART_POINT_NONE);
+          for (int i = 0; i < 12; i++) {
+            int idx = (slot + 1 + i) % 12;
+            lv_chart_set_next_value(id(energy_history_chart), id(energy_usage_series), id(usage_history)[idx]);
+            lv_chart_set_next_value(id(energy_history_chart), id(energy_solar_series), id(solar_history)[idx]);
+          }
+          lv_chart_refresh(id(energy_history_chart));
 
 lvgl:
   touchscreen: touch
@@ -507,3 +577,59 @@ lvgl:
                             y: 68
                             text_font: font_small
                             text_color: 0x4488FF
+
+              # ── SCREEN 4: ENERGY HISTORY — 12-Hour Bar Chart ────────────
+              - id: screen_history
+                bg_color: 0x000000
+                widgets:
+                  - label:
+                      text: "ENERGY LAST 12H"
+                      align: TOP_MID
+                      y: 20
+                      text_font: font_medium
+                      text_color: 0xFFFFFF
+
+                  # Bar chart: 12 hourly columns, usage (red) + solar (green)
+                  - chart:
+                      id: energy_history_chart
+                      align: CENTER
+                      y: -15
+                      width: 440
+                      height: 300
+                      bg_color: 0x111111
+                      bg_opa: 100%
+                      border_color: 0x333333
+                      border_width: 1
+                      radius: 6
+                      chart_type: BAR
+                      update_mode: SHIFT
+                      point_count: 12
+                      y_min: 0
+                      y_max: ${chart_max_wh}
+                      series:
+                        - id: energy_usage_series
+                          color: 0xFF4444
+                        - id: energy_solar_series
+                          color: 0x44FF88
+
+                  # Legend strip
+                  - obj:
+                      align: BOTTOM_MID
+                      y: -8
+                      width: 440
+                      height: 36
+                      bg_opa: 0%
+                      border_width: 0
+                      widgets:
+                        - label:
+                            text: "■ Usage (Wh)"
+                            align: LEFT_MID
+                            x: 20
+                            text_font: font_small
+                            text_color: 0xFF4444
+                        - label:
+                            text: "■ Solar (Wh)"
+                            align: RIGHT_MID
+                            x: -20
+                            text_font: font_small
+                            text_color: 0x44FF88
