@@ -21,6 +21,10 @@ esphome:
     priority: -100
     then:
       - script.execute: screen_cycle_timer
+  libraries:
+    - Wire
+    - WiFi
+    - Preferences      
 
 packages:
   hardware_core: !include packages/hardware_core.yaml
