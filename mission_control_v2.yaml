@@ -234,14 +234,7 @@ script:
                 animated: true
 
 lvgl:
-  touchscreen: touch
-  on_touch:
-    then:
-      - lambda: 'id(touch_active) = true;'
-      - script.execute: screen_cycle_timer
-      - delay: 10s
-      - lambda: 'id(touch_active) = false;'
-
+  touchscreens: touch
   disp_bg_color: 0x000000
 
   pages:
@@ -249,6 +242,12 @@ lvgl:
       widgets:
         - tileview:
             id: main_nav
+            on_press:
+              then:
+                - lambda: 'id(touch_active) = true;'
+                - script.execute: screen_cycle_timer
+                - delay: 10s
+                - lambda: 'id(touch_active) = false;'
             tiles:
               # SCREEN 1: ENERGY ARCS
               - id: screen_energy
@@ -264,17 +263,18 @@ lvgl:
                   # Usage Arc (Left/Top)
                   - arc:
                       id: usage_arc
-                      range_min: 0
-                      range_max: ${max_power_usage}
+                      min_value: 0
+                      max_value: ${max_power_usage}
                       width: 180
                       height: 180
                       align: CENTER
                       x: -100
                       y: -20
                       rotation: 135
-                      type: normal
-                      arc_bg_end_angle: 270
-                      arc_color: 0xFF0000 # Red for consumption
+                      start_angle: 135
+                      end_angle: 45
+                      indicator:
+                        arc_color: 0xFF0000 # Red for consumption
                       widgets:
                         - label:
                             id: usage_val_label
@@ -285,17 +285,18 @@ lvgl:
                   # Solar Arc (Right/Bottom)
                   - arc:
                       id: solar_arc
-                      range_min: 0
-                      range_max: ${max_solar_production}
+                      min_value: 0
+                      max_value: ${max_solar_production}
                       width: 180
                       height: 180
                       align: CENTER
                       x: 100
                       y: 60
                       rotation: 135
-                      type: normal
-                      arc_bg_end_angle: 270
-                      arc_color: 0x00FF00 # Green for solar
+                      start_angle: 135
+                      end_angle: 45
+                      indicator:
+                        arc_color: 0x00FF00 # Green for solar
                       widgets:
                         - label:
                             id: solar_val_label
@@ -333,15 +334,17 @@ lvgl:
                   # Temperature Gauge (Visualized as an Arc)
                   - arc:
                       id: temp_arc
-                      range_min: -10
-                      range_max: 40
+                      min_value: -10
+                      max_value: 40
                       width: 220
                       height: 220
                       align: CENTER
                       y: -30
                       rotation: 135
-                      arc_bg_end_angle: 270
-                      arc_color: 0x00AAFF
+                      start_angle: 135
+                      end_angle: 45
+                      indicator:
+                        arc_color: 0x00AAFF
                       widgets:
                         - label:
                             id: temp_val_label
