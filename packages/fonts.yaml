@@ -1,0 +1,24 @@
+##############################################################
+# FONTS — Google Fonts + Material Design Icons
+##############################################################
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 18
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 28
+  - file: "gfonts://Roboto"
+    id: font_large
+    size: 48
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: font_icons
+    size: 32
+    glyphs:
+      - "\U000F059D" # sunny
+      - "\U000F0019" # flash
+      - "\U000F0190" # currency-eur
+      - "\U000F050F" # thermometer
+      - "\U000F02D7" # home-lightning-bolt
+      - "\U000F05A9" # wifi

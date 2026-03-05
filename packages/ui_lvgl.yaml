@@ -1,234 +1,305 @@
+##############################################################
+# UI — LVGL multi-screen tileview
+##############################################################
+
 lvgl:
-  buffer_size: 40%
-  color_depth: 16
+  touchscreens: touch
+  disp_bg_color: 0x000000
+
   pages:
-    - id: main_robot
+    - id: page_main
       widgets:
-        - image:
-            id: face
-            src: img_neutral
-            align: CENTER
-            
-        - obj:
-            id: face_touch_zone
-            width: 350
-            height: 350
-            align: CENTER
-            bg_opa: 0
-            border_width: 0
-            on_click:
-              - if:
-                  condition:
-                    lambda: 'return !id(question_active) && !id(game_active);'
-                  then:
-                    - if:
-                        condition:
-                          script.is_running: eve_talks
-                        then:
-                          - script.stop: eve_talks
-                          - lvgl.widget.hide: speech_bubble
-                          - script.execute:
-                              id: eve_talks
-                              message: "Stop it! Leave me alone!"
-                              duration_ms: 2000
-                              use_happy_face: false
-                          - delay: 2100ms
-                          - lvgl.image.update: { id: face, src: img_angry_redalert }
-                          - delay: 2s
-                          - lvgl.image.update: { id: face, src: img_neutral }
-                        else:
-                          - lvgl.widget.hide: speech_bubble
-                          - script.execute:
-                              id: eve_talks
-                              message: "Hey! That tickles!"
-                              duration_ms: 2500
-                              use_happy_face: true
-        
-        # Settings Button
-        - button:
-            id: secret_settings_btn
-            width: 120
-            height: 120
-            align: BOTTOM_RIGHT
-            bg_opa: 0%      # Invisible
-            border_opa: 0%  # Invisible
-            shadow_width: 0
-            on_long_press:
-              - lvgl.page.show: settings_page
-        - obj:
-            id: speech_bubble
-            width: 380
-            height: 120
-            align: TOP_MID
-            y: 20
-            hidden: true
-            bg_color: 0xFFFFFF
-            radius: 20
-            border_width: 3
-            widgets:
-              - label:
-                  id: speech_text
-                  text: ""
-                  align: CENTER
-                  width: 340
-                  text_font: robot_font
-
-        - button:
-            id: btn_yes
-            width: 70
-            height: 70
-            align: BOTTOM_RIGHT
-            x: -60
-            y: -60
-            hidden: true
-            bg_color: 0x2ECC71
-            radius: 12
-            on_click:
-              - script.execute: { id: handle_choice, choice: true }
-            widgets:
-              - label: {text: "YES", align: CENTER}
-
-        - button:
-            id: btn_no
-            width: 70
-            height: 70
-            align: BOTTOM_LEFT
-            x: 60
-            y: -60
-            hidden: true
-            bg_color: 0xE74C3C
-            radius: 12
-            on_click:
-              - script.execute: { id: handle_choice, choice: false }
-            widgets:
-              - label: {text: "NO", align: CENTER}
-
-    # SETTINGS PAGE (Separated from Main Robot)
-    - id: settings_page
-      bg_color: 0x1A1A1A
-      widgets:
-        - label:
-            text: "SETTINGS"
-            align: TOP_MID
-            y: 20
-            text_font: robot_font
-            text_color: 0xFFFFFF
-        - button:
-            align: CENTER
-            y: 0
-            width: 250
-            height: 50
-            widgets: [{label: {text: "View SD Files"}}]
-            on_click:
-              - lvgl.page.show: sd_list_page
-              - lambda: |-
-                  // 1. Get the list from our driver
-                  // We cast the sensor to our SDCustom class
-                  auto* controller = (SDCustom*)id(sd_status);
-                  std::string files = controller->get_file_list();
-                  
-                  // 2. THE FIX: No type names (like lv_obj_t), just the IDs
-                  lv_label_set_text(id(file_list_label), files.c_str());
-
-        - button:
-            width: 200
-            height: 50
-            align: BOTTOM_MID
-            y: -20
-            on_click:
-              - lvgl.page.show: main_robot
-            widgets:
-              - label: {text: "BACK"}
-    - id: sd_list_page
-      # This allows the page to move if the text is long
-      scrollable: true 
-      widgets:
-        - label:
-            text: "Files on SD Card:"
-            align: TOP_MID
-            y: 10
-            text_font: robot_font
-        
-        - label:
-            id: file_list_label
-            text: "Loading..."
-            align: TOP_LEFT
-            x: 20
-            y: 50
-            width: 440 
-            text_font: robot_font
-
-        - button:
-            width: 60
-            height: 60
-            align: TOP_LEFT
-            widgets: [{label: {text: "<"}}]
-            on_click:
-              - lvgl.page.show: settings_page          
-
-    # GAME PAGE (Separated from Main Robot)
-    - id: game_page
-      bg_color: 0x000000
-      widgets:
-        - image:
-            id: mini_face
-            src: img_mini_neutral
-            align: TOP_RIGHT
-            x: -10
-            y: 10
-        - label:
-            id: hangman_visual
-            text: ""
-            align: TOP_MID
-            y: 20
-            text_font: robot_font
-            text_color: 0xFF0000
-        - label:
-            id: word_label
-            text: ""
-            align: CENTER
-            y: -40
-            text_font: robot_font
-            text_color: 0xFFFFFF
-        - keyboard:
-            id: game_kb
-            width: 440
-            height: 180
-            align: BOTTOM_MID
-            y: -10
-            on_value:
+        - tileview:
+            id: main_nav
+            on_press:
               then:
-                - lambda: |-
-                    if(lv_event_get_code(event) == LV_EVENT_VALUE_CHANGED) {
-                      uint16_t btn_id = lv_btnmatrix_get_selected_btn(id(game_kb)->obj);
-                      if(btn_id != LV_BTNMATRIX_BTN_NONE) {
-                        const char* btn_text = lv_btnmatrix_get_btn_text(id(game_kb)->obj, btn_id);
-                        if(btn_text != nullptr && strlen(btn_text) == 1) {
-                          id(process_guess).execute(btn_text);
-                        }
-                      }
-                    }
-        - button:
-            id: btn_exit_game
-            width: 100
-            height: 50
-            align: TOP_LEFT
-            x: 10
-            y: 10
-            bg_color: 0x555555
-            on_click:
-              - lvgl.page.show: main_robot
-              - globals.set: { id: game_active, value: 'false' }
-            widgets:
-              - label: {text: "EXIT"}
-        - button:
-            id: hangman_restart_btn
-            align: BOTTOM_MID
-            y: -20
-            # hidden: true # Start hidden
-            widgets: [{label: {text: "Play Again"}}]
-            on_click:
-              - script.execute: start_new_game # Your script that picks a new word
-              # - lambda: 'lv_obj_add_flag(id(hangman_restart_btn), LV_OBJ_FLAG_HIDDEN);'     
+                - lambda: 'id(touch_active) = true;'
+                - script.execute: screen_cycle_timer
+                - delay: 10s
+                - lambda: 'id(touch_active) = false;'
+            tiles:
 
-# === SCRIPTS ===
+              # ── SCREEN 1: ENERGY ARCS ───────────────────────────────
+              - id: screen_energy
+                row: 0
+                column: 0
+                widgets:
+                  - label:
+                      text: "HOUSE POWER"
+                      align: TOP_MID
+                      y: 20
+                      text_font: font_medium
+
+                  # Usage Arc — red — consumption (left)
+                  - arc:
+                      id: usage_arc
+                      min_value: 0
+                      max_value: ${max_power_usage}
+                      width: 180
+                      height: 180
+                      align: CENTER
+                      x: -100
+                      y: -20
+                      rotation: 135
+                      start_angle: 135
+                      end_angle: 45
+                      indicator:
+                        arc_color: 0xFF0000
+                      widgets:
+                        - label:
+                            id: usage_val_label
+                            text: "--- W"
+                            align: CENTER
+                            text_font: font_small
+
+                  # Solar Arc — green — production (right)
+                  - arc:
+                      id: solar_arc
+                      min_value: 0
+                      max_value: ${max_solar_production}
+                      width: 180
+                      height: 180
+                      align: CENTER
+                      x: 100
+                      y: 60
+                      rotation: 135
+                      start_angle: 135
+                      end_angle: 45
+                      indicator:
+                        arc_color: 0x00FF00
+                      widgets:
+                        - label:
+                            id: solar_val_label
+                            text: "--- W"
+                            align: CENTER
+                            text_font: font_small
+
+                  - label:
+                      text: "\U000F02D7" # home-lightning-bolt
+                      align: CENTER
+                      x: -100
+                      y: -80
+                      text_font: font_icons
+                      text_color: 0xFF0000
+
+                  - label:
+                      text: "\U000F059D" # sunny
+                      align: CENTER
+                      x: 100
+                      y: 0
+                      text_font: font_icons
+                      text_color: 0x00FF00
+
+              # ── SCREEN 2: WEATHER & PRICE ───────────────────────────
+              - id: screen_weather
+                row: 0
+                column: 1
+                widgets:
+                  - label:
+                      text: "ENVIRONMENT"
+                      align: TOP_MID
+                      y: 20
+                      text_font: font_medium
+
+                  # Temperature arc — blue
+                  - arc:
+                      id: temp_arc
+                      min_value: -10
+                      max_value: 40
+                      width: 220
+                      height: 220
+                      align: CENTER
+                      y: -30
+                      rotation: 135
+                      start_angle: 135
+                      end_angle: 45
+                      indicator:
+                        arc_color: 0x00AAFF
+                      widgets:
+                        - label:
+                            id: temp_val_label
+                            text: "--°C"
+                            align: CENTER
+                            text_font: font_large
+                        - label:
+                            id: weather_val_label
+                            text: "Loading..."
+                            align: CENTER
+                            y: 40
+                            text_font: font_small
+
+                  # Energy price panel
+                  - obj:
+                      width: 300
+                      height: 80
+                      align: BOTTOM_MID
+                      y: -40
+                      bg_color: 0x1A1A1A
+                      border_width: 2
+                      border_color: 0x333333
+                      radius: 10
+                      widgets:
+                        - label:
+                            text: "\U000F0190" # euro icon
+                            align: LEFT_MID
+                            x: 20
+                            text_font: font_icons
+                            text_color: 0xFFFF00
+                        - label:
+                            id: price_val_label
+                            text: "--- €"
+                            align: RIGHT_MID
+                            x: -20
+                            text_font: font_medium
+                            text_color: 0xFFFFFF
+
+              # ── SCREEN 3: DEVICE STATUS — Multi-Arc Meter ──────────
+              - id: screen_status
+                row: 0
+                column: 2
+                bg_color: 0x000000
+                widgets:
+                  - label:
+                      text: "DEVICE STATUS"
+                      align: TOP_MID
+                      y: 20
+                      text_font: font_medium
+                      text_color: 0xFFFFFF
+
+                  # Multi-arc meter (300×300, centred)
+                  # Arc 1 (outer)  — red   — CPU temp   (0–${max_cpu_temp}°C)
+                  # Arc 2 (middle) — green — Uptime     (0–${max_uptime_hours}h)
+                  # Arc 3 (inner)  — blue  — WiFi signal (0–100%)
+                  - meter:
+                      id: mission_control_meter
+                      align: CENTER
+                      y: -10
+                      width: 300
+                      height: 300
+                      bg_opa: 0%
+                      border_width: 0
+                      pad_all: 0
+                      scales:
+                        - range_from: 0
+                          range_to: ${max_cpu_temp}
+                          angle_range: 300
+                          rotation: 120
+                          ticks:
+                            count: 0
+                            length: 0
+                          indicators:
+                            - arc:
+                                id: cpu_temp_arc
+                                color: 0xFF4444
+                                width: 14
+                                r_mod: 0
+                                value: 0
+                        - range_from: 0
+                          range_to: ${max_uptime_hours}
+                          angle_range: 300
+                          rotation: 120
+                          ticks:
+                            count: 0
+                            length: 0
+                          indicators:
+                            - arc:
+                                id: uptime_arc
+                                color: 0x44FF88
+                                width: 14
+                                r_mod: -20
+                                value: 0
+                        - range_from: 0
+                          range_to: 100
+                          angle_range: 300
+                          rotation: 120
+                          ticks:
+                            count: 0
+                            length: 0
+                          indicators:
+                            - arc:
+                                id: wifi_signal_arc
+                                color: 0x4488FF
+                                width: 14
+                                r_mod: -40
+                                value: 0
+
+                  # Legend — below the meter
+                  - obj:
+                      align: BOTTOM_MID
+                      y: -15
+                      width: 440
+                      height: 90
+                      bg_opa: 0%
+                      border_width: 0
+                      widgets:
+                        # Row 1: CPU Temp
+                        - label:
+                            text: "\U000F050F" # thermometer
+                            align: TOP_LEFT
+                            x: 30
+                            y: 0
+                            text_font: font_icons
+                            text_color: 0xFF4444
+                        - label:
+                            text: "CPU Temp"
+                            align: TOP_LEFT
+                            x: 70
+                            y: 8
+                            text_font: font_small
+                            text_color: 0xFF4444
+                        - label:
+                            id: meter_val1_label
+                            text: "--°C"
+                            align: TOP_RIGHT
+                            x: -30
+                            y: 8
+                            text_font: font_small
+                            text_color: 0xFF4444
+
+                        # Row 2: Uptime
+                        - label:
+                            text: "\U000F0019" # flash
+                            align: TOP_LEFT
+                            x: 30
+                            y: 30
+                            text_font: font_icons
+                            text_color: 0x44FF88
+                        - label:
+                            text: "Uptime"
+                            align: TOP_LEFT
+                            x: 70
+                            y: 38
+                            text_font: font_small
+                            text_color: 0x44FF88
+                        - label:
+                            id: meter_val2_label
+                            text: "--h"
+                            align: TOP_RIGHT
+                            x: -30
+                            y: 38
+                            text_font: font_small
+                            text_color: 0x44FF88
+
+                        # Row 3: WiFi Signal
+                        - label:
+                            text: "\U000F05A9" # wifi
+                            align: TOP_LEFT
+                            x: 30
+                            y: 60
+                            text_font: font_icons
+                            text_color: 0x4488FF
+                        - label:
+                            text: "WiFi"
+                            align: TOP_LEFT
+                            x: 70
+                            y: 68
+                            text_font: font_small
+                            text_color: 0x4488FF
+                        - label:
+                            id: meter_val3_label
+                            text: "--%"
+                            align: TOP_RIGHT
+                            x: -30
+                            y: 68
+                            text_font: font_small
+                            text_color: 0x4488FF

@@ -1,24 +1,110 @@
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+##############################################################
+# SENSORS — Home Assistant + Internal sensors
+##############################################################
 
-# === FONT ===
-api:
-ota:
-  - platform: esphome
-logger:
-  level: INFO
 sensor:
-  - platform: template
-    name: "SD Card Controller"
-    id: sd_status
-    lambda: |-
-      static SDCustom* my_sd = nullptr;
-      if (my_sd == nullptr) {
-          my_sd = new SDCustom();
-          my_sd->setup();
-      }
-      return 1.0; 
-    update_interval: never # We only want it to run once at boot
+  # ── Energy ─────────────────────────────────────────────────
+  - platform: homeassistant
+    id: energy_usage
+    entity_id: sensor.electricity_meter_energieverbruik
+    on_value:
+      then:
+        - lvgl.arc.update:
+            id: usage_arc
+            value: !lambda "return (int)x;"
+        - lvgl.label.update:
+            id: usage_val_label
+            text: !lambda 'return str_sprintf("%.0f W", x);'
 
-# === LVGL UI ===
+  - platform: homeassistant
+    id: energy_production
+    entity_id: sensor.electricity_meter_energieproductie
+    on_value:
+      then:
+        - lvgl.arc.update:
+            id: solar_arc
+            value: !lambda "return (int)x;"
+        - lvgl.label.update:
+            id: solar_val_label
+            text: !lambda 'return str_sprintf("%.0f W", x);'
+
+  - platform: homeassistant
+    id: energy_price
+    entity_id: sensor.current_electricity_price_all_in
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: price_val_label
+            text: !lambda 'return str_sprintf("%.3f €", x);'
+
+  # ── Weather ─────────────────────────────────────────────────
+  - platform: homeassistant
+    id: temp_outdoor
+    entity_id: weather.forecast_thuis
+    attribute: temperature
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: temp_val_label
+            text: !lambda 'return str_sprintf("%.1f°C", x);'
+        - lvgl.arc.update:
+            id: temp_arc
+            value: !lambda "return (int)x;"
+
+  # ── Device Status ────────────────────────────────────────────
+  - platform: internal_temperature
+    id: cpu_temp
+    name: "ESP32 Internal Temperature"
+    update_interval: 10s
+    on_value:
+      then:
+        - lvgl.indicator.update:
+            id: cpu_temp_arc
+            value: !lambda "return (int)min(x, (float)${max_cpu_temp});"
+        - lvgl.label.update:
+            id: meter_val1_label
+            text: !lambda 'return str_sprintf("%.0f°C", x);'
+
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "WiFi Signal"
+    update_interval: 30s
+    filters:
+      # Map RSSI (-100 dBm … -50 dBm) → 0-100%
+      - lambda: "return (int)((x + 100.0f) * 2.0f);"
+    on_value:
+      then:
+        - lvgl.indicator.update:
+            id: wifi_signal_arc
+            value: !lambda "return (int)clamp(x, 0.0f, 100.0f);"
+        - lvgl.label.update:
+            id: meter_val3_label
+            text: !lambda 'return str_sprintf("%.0f%%", clamp(x, 0.0f, 100.0f));'
+
+  - platform: uptime
+    id: uptime_sensor
+    name: "Uptime"
+    update_interval: 60s
+    on_value:
+      then:
+        - lambda: "id(uptime_hours) = x / 3600.0f;"
+        - lvgl.indicator.update:
+            id: uptime_arc
+            value: !lambda "return (int)min(id(uptime_hours), (float)${max_uptime_hours});"
+        - lvgl.label.update:
+            id: meter_val2_label
+            text: !lambda |-
+              float h = x / 3600.0f;
+              if (h < 1.0f)
+                return str_sprintf("%.0fm", x / 60.0f);
+              return str_sprintf("%.1fh", h);
+
+text_sensor:
+  - platform: homeassistant
+    id: weather_condition
+    entity_id: weather.forecast_thuis
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: weather_val_label
+            text: !lambda 'return x.c_str();'
