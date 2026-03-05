@@ -88,7 +88,7 @@ sensor:
     entity_id: sensor.electricity_meter_energieverbruik
     on_value:
       then:
-        - lvgl.arc.set_value:
+        - lvgl.arc.update:
             id: usage_arc
             value: !lambda "return (int)x;"
         - lvgl.label.update:
@@ -101,7 +101,7 @@ sensor:
     entity_id: sensor.electricity_meter_energieproductie
     on_value:
       then:
-        - lvgl.arc.set_value:
+        - lvgl.arc.update:
             id: solar_arc
             value: !lambda "return (int)x;"
         - lvgl.label.update:
@@ -137,9 +137,8 @@ sensor:
     update_interval: 10s
     on_value:
       then:
-        - lvgl.meter.set_value:
-            id: mission_control_meter
-            indicator_id: cpu_temp_arc
+        - lvgl.indicator.update:
+            id: cpu_temp_arc
             value: !lambda "return (int)min(x, (float)${max_cpu_temp});"
         - lvgl.label.update:
             id: meter_val1_label
@@ -155,9 +154,8 @@ sensor:
       - lambda: "return (int)((x + 100.0f) * 2.0f);"
     on_value:
       then:
-        - lvgl.meter.set_value:
-            id: mission_control_meter
-            indicator_id: wifi_signal_arc
+        - lvgl.indicator.update:
+            id: wifi_signal_arc
             value: !lambda "return (int)clamp(x, 0.0f, 100.0f);"
         - lvgl.label.update:
             id: meter_val3_label
@@ -171,9 +169,8 @@ sensor:
     on_value:
       then:
         - lambda: "id(uptime_hours) = x / 3600.0f;"
-        - lvgl.meter.set_value:
-            id: mission_control_meter
-            indicator_id: uptime_arc
+        - lvgl.indicator.update:
+            id: uptime_arc
             value: !lambda "return (int)min(id(uptime_hours), (float)${max_uptime_hours});"
         - lvgl.label.update:
             id: meter_val2_label
