@@ -16,7 +16,14 @@ script:
                   lambda: 'return !id(touch_active);'
                 then:
                   - script.execute: next_screen
-
+  - id: idle_dimmer_script
+    mode: restart
+    then:
+      - delay: 60s
+      - light.control:
+          id: display_backlight
+          brightness: 0.1 # Dims the screen after 60s of no touch
+          
   - id: next_screen
     then:
       - lambda: 'id(current_screen) = (id(current_screen) + 1) % 3;'
