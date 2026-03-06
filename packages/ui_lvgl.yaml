@@ -4,7 +4,8 @@
 
 lvgl:
   touchscreens: gt911_touch
-  disp_bg_color: 0x000000
+  disp_bg_color: 0x0D0D0D
+  default_font: font_small
 
   pages:
     - id: page_main
@@ -23,6 +24,7 @@ lvgl:
               - id: screen_energy
                 row: 0
                 column: 0
+                bg_color: 0x1A1A1A
                 widgets:
                   - label:
                       text: "HOUSE POWER"
@@ -94,6 +96,7 @@ lvgl:
               - id: screen_weather
                 row: 0
                 column: 1
+                bg_color: 0x1A1A1A
                 widgets:
                   - label:
                       text: "ENVIRONMENT"
@@ -157,14 +160,13 @@ lvgl:
               - id: screen_status
                 row: 0
                 column: 2
-                bg_color: 0x000000
+                bg_color: 0x1A1A1A
                 widgets:
                   - label:
                       text: "DEVICE STATUS"
                       align: TOP_MID
                       y: 20
                       text_font: font_medium
-                      text_color: 0xFFFFFF
 
                   # Multi-arc meter (300×300, centred)
                   # Arc 1 (outer)  — red   — CPU temp   (0–${max_cpu_temp}°C)
@@ -226,9 +228,9 @@ lvgl:
                   # Legend — below the meter
                   - obj:
                       align: BOTTOM_MID
-                      y: -15
+                      y: -10
                       width: 440
-                      height: 90
+                      height: 115
                       bg_opa: 0%
                       border_width: 0
                       widgets:
