@@ -59,12 +59,12 @@ touchscreen:
 
 # === HARDWARE: SD CARD (SPI MODE) ===
 output:
-  - platform: ledc
-    id: backlight_pwm
-    pin: GPIO38
-    frequency: 100Hz        # was 12000Hz — lower freq = more stable for LCD backlights
-    min_power: 0.01         # was 0.08
-    zero_means_zero: true   # add this — ensures 0% actually turns off
+  - platform: ledc
+    id: backlight_pwm
+    pin: GPIO38
+    frequency: 100Hz
+    min_power: 0.01
+    zero_means_zero: true
 
 light:
   - platform: monochromatic
